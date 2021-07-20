@@ -1,0 +1,146 @@
+<html>
+
+<body>
+  <canvas id="V" height=250 width=250></canvas>
+  <canvas id="V2" height=250 width=500 />
+</body>
+<script>
+  function gd2rd(grad) {
+    return grad * Math.PI / 180
+  }
+  const h = 26;                  // height(thickness), unit: mm
+  const beta = 25;               // angle in degree [0, 90], the total angle will be 2*beta
+  const g = 1;                   // assembly clearance = g*2, unit mm
+
+  const A = [-g / 2, 0];                 // start point left, assume the bottom of V lies in origin
+  const B = [g / 2, 0];                  // start point right, assume the bottom of V lies in origin
+  const C = [h * Math.tan(gd2rd(beta)) + g / 2, h];     // corner point right
+  const D = [-h * Math.tan(gd2rd(beta)) - g / 2, h];    // corner point left
+  const margin = 10
+  const canvas = document.getElementById("V")
+  const height = canvas.height
+  const width = canvas.width
+  const ctx = canvas.getContext("2d")
+  const scaleY = (height - margin) / h
+  const scaleX = (width - 2 * margin) / C[1]
+
+  //// welding parameter information
+  const aH = 1; // deposition coefficient
+  const v1 = 1; // wire feed rate
+  const d = 1;  // wire diameter
+  const v2 = 1; // welding speed
+  const m = 1;  // number of the weld beads contained in L layer
+
+  // derived param for layer planning
+  const t = h / 7;                       // for simplicity
+  S = (Math.tan(gd2rd(beta)) * (t) + g) * t;      // cross-sectional area of the weld bead
+  const K = Math.floor(h / t);                // number of layer
+  const L = (m) => { return 2 * Math.tan(gd2rd(beta)) * t * m + g; }    //    % layer length
+  const length = t / 2;                                   // length of arrow to represnt weld in the plot
+  const l = S / t;                            //length of the weld bead in parallelograms                 
+  const LN = Math.ceil((L(K) + L(K - 1)) / (L(1) + g));  // largest number of beads in one layer
+  const vl = [Math.tan(gd2rd(beta)) * t, - t]; // vector for left point projection
+  const vr = [-Math.tan(gd2rd(beta)) * t, - t]; // vector for right point drawing
+  const dl = [length * Math.sin(gd2rd(45 - beta / 2)), length * Math.cos(gd2rd(45 - beta / 2))];  // orientation of weld point for left segmentation
+  const dv = [length * (-Math.cos(gd2rd(45 + beta / 2))), length * Math.sin(gd2rd(45 + beta / 2))]; // orientation of weld point for right segmentation                                   // for arranging sequece
+  const weldLayers = Array()
+  // plot segmentatzation
+  for (let i = 1; i <= K; i++) {
+    const y = i * t;
+    const right_x = Math.tan(gd2rd(beta)) * y + g / 2;
+    const left_x = -right_x;
+    weldLayers.push([left_x, right_x, y])
+  }
+  console.log(weldLayers)
+  // constrcut weld points
+  const weldPoints = []
+  for (let i = 1; i <= K; i++) {
+    const y = i * t;
+    const xr = Math.tan(gd2rd(beta)) * y + g / 2;
+    const xl = -xr;
+    const N = Math.round((L(i) + L(i - 1)) / (L(1) + g));
+    if (N > 1) {
+      const lp = Math.floor(N / 2);
+      const rp = N - lp - 1;
+      for (let j = 1; j <= lp; j++) {
+        const x = xl + j * l;
+        const temp = [x + vl[0], y + vl[1]];
+        weldPoints.push([x, temp[0], y, temp[1]])
+      }
+      for (let j = lp + 1; j <= N - 1; j++) {
+        const x = xr - (N - j) * l;
+        const temp = [x + vr[0], y + vr[1]];
+        weldPoints.push([x, temp[0], y, temp[1]])
+      }
+    }
+  }
+  console.log(weldPoints)
+
+  //// 5.get the pose for welding (position and orientation, represneted in vector form)
+  const welding_points = [];
+  for (let i = 1; i <= K; i++) {
+    const it = i - 1
+    const y = i * t;
+    const xr = Math.tan(gd2rd(beta)) * y + g / 2;
+    const xl = -xr;
+    const N = Math.round((L(i) + L(i - 1)) / (L(1) + g));
+    let k = N - 1;
+    if (N == 1) {
+      welding_pt = [0, 0, 0, l / 2];
+      welding_points.push(welding_pt);
+    }
+    else if (N == 2) {
+      x = xl + l;
+      temp = [x + vl[0] - l, y + vl[1]];
+      welding_pt = [temp[0], temp[0] + dl[0], temp[1], temp[1] + dl[1]];
+      welding_points.push(welding_pt);
+      welding_pt = [-(temp[0] + dl[0]), -(temp[0] + dl[0]), temp[1], temp[1] + length];
+      welding_points.push(welding_pt);
+    }
+    else if (N > 2) {
+      lp = Math.floor(N / 2);
+      rp = N - lp - 1;
+      for (let j = 0; j < lp; j++) {
+        x = xl + (j + 1) * l;
+        temp = [x + vl[0] - l, y + vl[1]];
+        welding_pt = [temp[0], temp[0] + dl[0], temp[1], temp[1] + dl[1]];
+        welding_points.push(welding_pt);
+      }
+      for (let j = lp; j < N - 1; j++) {
+        x = xr - (N - k) * l;
+        temp = [x + vr[0] + l, y + vr[1]];
+        k = k - 1;
+        welding_pt = [temp[0], temp[0] + dv[0], temp[1], temp[1] + dv[1]];
+        welding_points.push(welding_pt);
+      }
+      welding_pt = [(xl + lp * l + vl[0] - l + temp[0]) / 2, (xl + lp * l + vl[0] - l + temp[0]) / 2, temp[1], temp[1] + length];
+      welding_points.push(welding_pt);
+    }
+  }
+  console.log(welding_points)
+  ctx.beginPath()
+  ctx.moveTo(scaleX * A[0] + width / 2, scaleY * D[1])
+  ctx.lineTo(scaleX * D[0] + width / 2, scaleY * A[1])
+  ctx.moveTo(scaleX * B[0] + width / 2, scaleY * C[1])
+  ctx.lineTo(scaleX * C[0] + width / 2, scaleY * B[1])
+  ctx.stroke()
+  for (let i = 0; i < weldLayers.length; i++) {
+    ctx.beginPath()
+    ctx.moveTo(scaleX * weldLayers[i][0] + width / 2, scaleY * (weldLayers[weldLayers.length - i - 1][2] - weldLayers[0][2]))
+    ctx.lineTo(scaleX * weldLayers[i][1] + width / 2, scaleY * (weldLayers[weldLayers.length - i - 1][2] - weldLayers[0][2]))
+    ctx.stroke()
+  }
+  for (let i = 0; i < weldPoints.length; i++) {
+    ctx.beginPath()
+    ctx.moveTo(scaleX * weldPoints[i][0] + width / 2, height - scaleY * weldPoints[i][2] - margin)
+    ctx.lineTo(scaleX * weldPoints[i][1] + width / 2, height - scaleY * weldPoints[i][3] - margin)
+    ctx.stroke()
+  }
+  for (let i = 0; i < welding_points.length; i++) {
+    ctx.beginPath()
+    ctx.moveTo(scaleX * welding_points[i][0] + width / 2, height - scaleY * welding_points[i][2] - margin)
+    ctx.lineTo(scaleX * welding_points[i][1] + width / 2, height - scaleY * welding_points[i][3] - margin)
+    ctx.stroke()
+  }
+</script>
+</html>
