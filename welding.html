@@ -1,7 +1,7 @@
 <html>
 
 <body>
-  <canvas id="V" height=250 width=250></canvas>
+  <canvas id="V" height=300 width=300></canvas>
   <canvas id="V2" height=250 width=500 />
 </body>
 <script>
@@ -27,10 +27,11 @@
   //// welding parameter information
   const aH = 1; // deposition coefficient
   const v1 = 1; // wire feed rate
-  const d = 1;  // wire diameter
+  const d = 5;  // wire diameter
   const v2 = 1; // welding speed
   const m = 1;  // number of the weld beads contained in L layer
-
+  //S = aH*pi*v1*(d^2)/(4*v2);   
+  //t = sqrt(S-g/tand(beta));
   // derived param for layer planning
   const t = h / 7;                       // for simplicity
   S = (Math.tan(gd2rd(beta)) * (t) + g) * t;      // cross-sectional area of the weld bead
@@ -42,7 +43,7 @@
   const vl = [Math.tan(gd2rd(beta)) * t, - t]; // vector for left point projection
   const vr = [-Math.tan(gd2rd(beta)) * t, - t]; // vector for right point drawing
   const dl = [length * Math.sin(gd2rd(45 - beta / 2)), length * Math.cos(gd2rd(45 - beta / 2))];  // orientation of weld point for left segmentation
-  const dv = [length * (-Math.cos(gd2rd(45 + beta / 2))), length * Math.sin(gd2rd(45 + beta / 2))]; // orientation of weld point for right segmentation                                   // for arranging sequece
+  const dv = [length * (-Math.cos(gd2rd(45 + beta / 2))), length * Math.sin(gd2rd(45 + beta / 2))]; // orientation of weld point for right segmentation
   const weldLayers = Array()
   // plot segmentatzation
   for (let i = 1; i <= K; i++) {
@@ -141,6 +142,12 @@
     ctx.moveTo(scaleX * welding_points[i][0] + width / 2, height - scaleY * welding_points[i][2] - margin)
     ctx.lineTo(scaleX * welding_points[i][1] + width / 2, height - scaleY * welding_points[i][3] - margin)
     ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(scaleX * welding_points[i][0] + width / 2, height - scaleY * welding_points[i][2] - margin, 3, 0, 2 * Math.PI, false)
+    ctx.fillStyle = 'red'
+    ctx.fill()
+    ctx.stroke()
   }
 </script>
+
 </html>
